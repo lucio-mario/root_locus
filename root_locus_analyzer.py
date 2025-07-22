@@ -9,6 +9,7 @@ from pylatex.utils import bold
 import os
 import tempfile
 import warnings
+import shutil
 warnings.filterwarnings("ignore", category=FutureWarning, module='control')
 
 def get_polynomial_input(name):
@@ -486,7 +487,18 @@ def generate_report(data):
 def main():
     parser = argparse.ArgumentParser(description="Perform a complete Root Locus analysis.")
     parser.add_argument('-v', '--verbose', action='store_true', help="Generate a detailed PDF report with all plots embedded.")
+    parser.add_argument('-k', '--keep', action='store_true', help="Keep generated plot files in a 'plots' directory.")
     args = parser.parse_args()
+
+    output_dir_name = 'plots'
+    if os.path.exists(output_dir_name):
+        print(f"[Info] Cleaning up previous '{output_dir_name}' directory...")
+        shutil.rmtree(output_dir_name)
+
+    pdf_filename = 'root_locus_analysis_report.pdf'
+    if os.path.exists(pdf_filename):
+        print(f"[Info] Cleaning up previous report file '{pdf_filename}'...")
+        os.remove(pdf_filename)
 
     print("====== Root Locus Analysis ======")
     num, den = get_polynomial_input("numerator"), get_polynomial_input("denominator")
@@ -502,44 +514,99 @@ def main():
     routh_data = analyze_imaginary_crossing(num, den)
     angle_data = analyze_departure_arrival_angles(poles, zeros)
 
-    if args.verbose:
-        with tempfile.TemporaryDirectory() as temp_dir:
-            print(f"\n[Verbose Mode] Using temporary directory: {temp_dir}")
+    # Find and replace the entire if/else block at the end of main() with this new structure
 
-            main_plot_filename = generate_root_locus_plot(system, poles, zeros, asymptotes_data, output_dir=temp_dir)
+    if args.verbose:
+        # This block will handle both `-v` and `-v -k` cases.
+        if args.keep:
+            # Case: -v and -k are used together.
+            # We create the 'plots' directory and run the full report generation,
+            # saving the files permanently.
+            output_dir = output_dir_name
+            os.makedirs(output_dir, exist_ok=True)
+            print(f"\n[Verbose Mode] Plots will be saved in '{output_dir}'.")
+
+            # This is the same logic that was inside the 'with tempfile.TemporaryDirectory()' block,
+            # but now it uses our permanent 'output_dir'.
+            main_plot_filename = generate_root_locus_plot(system, poles, zeros, asymptotes_data, output_dir=output_dir)
 
             print("\n[Verbose Mode] Generating angle calculation plots...")
             angle_plot_files = []
             if angle_data['departure']:
                 for pole, details in angle_data['departure'].items():
-                    # Find the correct 1-based index of the pole
                     pole_index = poles_list.index(pole) + 1
-                    filename = plot_angle_calculation(pole, poles, zeros, 'departure', pole_index, output_dir=temp_dir)
+                    filename = plot_angle_calculation(pole, poles, zeros, 'departure', pole_index, output_dir=output_dir)
                     angle_plot_files.append(filename)
             if angle_data['arrival']:
                 for zero, details in angle_data['arrival'].items():
-                    # Find the correct 1-based index of the zero
                     zero_index = zeros_list.index(zero) + 1
-                    filename = plot_angle_calculation(zero, poles, zeros, 'arrival', zero_index, output_dir=temp_dir)
+                    filename = plot_angle_calculation(zero, poles, zeros, 'arrival', zero_index, output_dir=output_dir)
                     angle_plot_files.append(filename)
 
             s = sp.symbols('s')
-
             report_data = {
-                'tf_sympy': sp.Poly(num, s).as_expr() / sp.Poly(den, s).as_expr(),
-                'poles': poles, 'zeros': zeros,
-                'plot_filename': main_plot_filename,
-                'asymptotes': asymptotes_data,
-                'breakaway': breakaway_data,
-                'routh_hurwitz': routh_data,
-                'angles': angle_data,
-                'angle_plot_files': angle_plot_files
+                'tf_sympy': sp.Poly(num, s).as_expr() / sp.Poly(den, s).as_expr(), 'poles': poles, 'zeros': zeros,
+                'plot_filename': main_plot_filename, 'asymptotes': asymptotes_data, 'breakaway': breakaway_data,
+                'routh_hurwitz': routh_data, 'angles': angle_data, 'angle_plot_files': angle_plot_files
             }
             generate_report(report_data)
+        else:
+            # Case: Only -v is used. This is the original behavior.
+            # It uses a temporary directory that gets deleted afterwards.
+            with tempfile.TemporaryDirectory() as temp_dir:
+                # This block is the original code you had for the 'if args.verbose:' case.
+                # You can copy and paste it here.
+                print(f"\n[Verbose Mode] Using temporary directory: {temp_dir}")
+                main_plot_filename = generate_root_locus_plot(system, poles, zeros, asymptotes_data, output_dir=temp_dir)
+                # ... (rest of the original code for generating plots and report in temp_dir) ...
+                print("\n[Verbose Mode] Generating angle calculation plots...")
+                angle_plot_files = []
+                if angle_data['departure']:
+                    for pole, details in angle_data['departure'].items():
+                        pole_index = poles_list.index(pole) + 1
+                        filename = plot_angle_calculation(pole, poles, zeros, 'departure', pole_index, output_dir=temp_dir)
+                        angle_plot_files.append(filename)
+                if angle_data['arrival']:
+                    for zero, details in angle_data['arrival'].items():
+                        zero_index = zeros_list.index(zero) + 1
+                        filename = plot_angle_calculation(zero, poles, zeros, 'arrival', zero_index, output_dir=temp_dir)
+                        angle_plot_files.append(filename)
+
+                s = sp.symbols('s')
+                report_data = {
+                    'tf_sympy': sp.Poly(num, s).as_expr() / sp.Poly(den, s).as_expr(), 'poles': poles, 'zeros': zeros,
+                    'plot_filename': main_plot_filename, 'asymptotes': asymptotes_data, 'breakaway': breakaway_data,
+                    'routh_hurwitz': routh_data, 'angles': angle_data, 'angle_plot_files': angle_plot_files
+                }
+                generate_report(report_data)
+
+    elif args.keep:
+        # Case: Only -k is used.
+        # We create the 'plots' directory, save all plot files there,
+        # and print the console summary. No PDF is generated.
+        output_dir = output_dir_name
+        os.makedirs(output_dir, exist_ok=True)
+        print(f"\n[Keep Mode] Saving plots to '{output_dir}'...")
+
+        generate_root_locus_plot(system, poles, zeros, asymptotes_data, output_dir=output_dir, show_only=False)
+
+        if angle_data['departure']:
+            for pole, details in angle_data['departure'].items():
+                pole_index = poles_list.index(pole) + 1
+                plot_angle_calculation(pole, poles, zeros, 'departure', pole_index, output_dir=output_dir)
+        if angle_data['arrival']:
+            for zero, details in angle_data['arrival'].items():
+                zero_index = zeros_list.index(zero) + 1
+                plot_angle_calculation(zero, poles, zeros, 'arrival', zero_index, output_dir=output_dir)
+
+        display_console_summary(system, poles, zeros, asymptotes_data, breakaway_data, routh_data, angle_data)
+        print(f"\nPlot files have been saved in the '{output_dir_name}' directory.")
 
     else:
+        # Case: No flags are used. This is the original default behavior.
+        # It just shows the summary and opens the interactive plot window.
         display_console_summary(system, poles, zeros, asymptotes_data, breakaway_data, routh_data, angle_data)
-        
+
         print("\nShowing Root Locus graph in a new window...")
         generate_root_locus_plot(system, poles, zeros, asymptotes_data, show_only=True)
 
