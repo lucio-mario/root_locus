@@ -67,25 +67,39 @@ def analyze_departure_arrival_angles(poles, zeros):
 
     for p_focus in poles:
         if np.imag(p_focus) != 0:
-            angle_sum = 0
+            sum_pole_angles = 0
+            sum_zero_angles = 0
             for p_other in poles:
                 if p_focus != p_other:
-                    angle_sum += np.angle(p_focus - p_other, deg=True)
+                    sum_pole_angles += np.angle(p_focus - p_other, deg=True)
             for z in zeros:
-                angle_sum -= np.angle(p_focus - z, deg=True)
-            # Normalize angle to the range [0, 360]
-            departure_angles[p_focus] = (180 - angle_sum) % 360
+                sum_zero_angles += np.angle(p_focus - z, deg=True)
+
+            final_angle = (180 - (sum_pole_angles - sum_zero_angles)) % 360
+            # This now returns a dictionary with all the details
+            departure_angles[p_focus] = {
+                'angle': final_angle,
+                'sum_poles': sum_pole_angles,
+                'sum_zeros': sum_zero_angles
+            }
 
     for z_focus in zeros:
         if np.imag(z_focus) != 0:
-            angle_sum = 0
+            sum_pole_angles = 0
+            sum_zero_angles = 0
             for z_other in zeros:
                 if z_focus != z_other:
-                    angle_sum += np.angle(z_focus - z_other, deg=True)
+                    sum_zero_angles += np.angle(z_focus - z_other, deg=True)
             for p in poles:
-                angle_sum -= np.angle(z_focus - p, deg=True)
-            # Normalize angle to the range [0, 360]
-            arrival_angles[z_focus] = (180 - angle_sum) % 360
+                sum_pole_angles += np.angle(z_focus - p, deg=True)
+            
+            final_angle = (180 - (sum_zero_angles - sum_pole_angles)) % 360
+            # This also returns a dictionary with details
+            arrival_angles[z_focus] = {
+                'angle': final_angle,
+                'sum_poles': sum_pole_angles,
+                'sum_zeros': sum_zero_angles
+            }
 
     return {'departure': departure_angles, 'arrival': arrival_angles}
 
@@ -250,6 +264,8 @@ def display_console_summary(system, poles, zeros, asymp_data, break_data, routh_
     print(system)
 
     print("\n[+] Poles and Zeros:")
+    poles_list = list(poles)
+    zeros_list = list(zeros)
     print(f"  - Number of Poles (#p): {len(poles)}")
     for i, p in enumerate(poles):
         print(f"    - p{i+1}: {format_complex(p)}")
@@ -279,15 +295,19 @@ def display_console_summary(system, poles, zeros, asymp_data, break_data, routh_
         print("  - No departure angles (no complex poles).")
     else:
         print("  - Departure Angles (from poles):")
-        for i, (p, angle) in enumerate(angle_data['departure'].items(), 1):
-            print(f"    - θp{i} (from pole {format_complex(p)}): {angle:.2f}°")
+        for p, angle_details in angle_data['departure'].items():
+            pole_index = poles_list.index(p) + 1
+            angle_value = angle_details['angle']
+            print(f"    - θp{pole_index} (from pole {format_complex(p)}): {angle_value:.2f}°")
 
     if not angle_data['arrival']:
         print("\n  - No arrival angles (no complex zeros).")
     else:
         print("\n  - Arrival Angles (at zeros):")
-        for i, (z, angle) in enumerate(angle_data['arrival'].items(), 1):
-            print(f"    - θz{i} (at zero {format_complex(z)}): {angle:.2f}°")
+        for z, angle_details in angle_data['arrival'].items():
+            zero_index = zeros_list.index(z) + 1
+            angle_value = angle_details['angle']
+            print(f"    - θz{zero_index} (at zero {format_complex(z)}): {angle_value:.2f}°")
 
     print("\n" + "-"*70)
     print("[+] Breakaway / Break-in Points:")
@@ -376,25 +396,33 @@ def generate_report(data):
         
         with doc.create(Subsection('Departure and Arrival Angles')):
             angle_data = data['angles']
+            all_poles_list = list(data['poles'])
+            all_zeros_list = list(data['zeros'])
             doc.append("These angles indicate the direction of the locus as it leaves a complex pole or arrives at a complex zero.")
+            
             if angle_data['departure']:
                 with doc.create(Subsubsection('Angles of Departure')):
-                    for i, (p, angle) in enumerate(angle_data['departure'].items(), 1):
-                        doc.append(Math(data=rf"\theta_{{p{i}}} = {angle:.4f}^\circ", escape=False))
+                    for p_focus, angle_details in angle_data['departure'].items():
+                        pole_index = all_poles_list.index(p_focus) + 1
+                        angle = angle_details['angle']
+                        # This line was changed to show only the result
+                        formula_str = rf"\theta_{{p{pole_index}}} = {angle:.4f}^\circ"
+                        doc.append(Math(data=formula_str, escape=False))
             
             if angle_data['arrival']:
                 with doc.create(Subsubsection('Angles of Arrival')):
-                    for i, (z, angle) in enumerate(angle_data['arrival'].items(), 1):
-                        doc.append(Math(data=rf"\theta_{{z{i}}} = {angle:.4f}^\circ", escape=False))
+                    for z_focus, angle_details in angle_data['arrival'].items():
+                        zero_index = all_zeros_list.index(z_focus) + 1
+                        angle = angle_details['angle']
+                        # This line was also changed to show only the result
+                        formula_str = rf"\theta_{{z{zero_index}}} = {angle:.4f}^\circ"
+                        doc.append(Math(data=formula_str, escape=False))
 
         with doc.create(Subsection('Breakaway/Break-in Points')):
             break_data = data['breakaway']
             doc.append(NoEscape(r"These points are found by solving $\frac{dK}{ds} = 0$. This yields the following polynomial equation:"))
-
-            # Extrai o numerador da derivada e o adiciona ao PDF
             numerator_poly = sp.numer(sp.simplify(break_data['dK_ds']))
             doc.append(Math(data=f"{to_latex(numerator_poly)} = 0", escape=False))
-
             doc.append(Command('par'))
             doc.append("The roots of this equation are the potential points:")
             for sol in break_data['solutions']:
@@ -407,10 +435,8 @@ def generate_report(data):
             else:
                 doc.append(NoEscape(r"The Routh-Hurwitz criterion is applied to the characteristic polynomial $1+KG(s)=0$."))
                 doc.append(Math(data=f"{to_latex(routh_data['char_poly'].as_expr(), precision=12)} = 0", escape=False))
-                
                 with doc.create(Center()):
                     doc.append("The Routh Table is:")
-                
                 routh_array = routh_data['routh_array']
                 n_rows, n_cols = routh_array.shape
                 table = Tabular("c" * (n_cols + 1), row_height=1.5)
@@ -418,7 +444,6 @@ def generate_report(data):
                     row_data = [NoEscape(f'${to_latex(c, precision=4)}$') for c in routh_array.row(i)]
                     table.add_row([NoEscape(f"$s^{n_rows-1-i}$")] + row_data)
                 doc.append(table)
-                
                 if routh_data['k_crit']:
                     doc.append(Command('par'))
                     doc.append(NoEscape(r"The system becomes marginally stable when the $s^1$ row is zero:"))
@@ -467,6 +492,10 @@ def main():
     num, den = get_polynomial_input("numerator"), get_polynomial_input("denominator")
     system = ctrl.TransferFunction(num, den)
     poles, zeros = ctrl.poles(system), ctrl.zeros(system)
+    
+    # Convert to lists to easily find indices later
+    poles_list = list(poles)
+    zeros_list = list(zeros)
 
     asymptotes_data = analyze_asymptotes(poles, zeros)
     breakaway_data = analyze_breakaway_points(num, den)
@@ -482,12 +511,16 @@ def main():
             print("\n[Verbose Mode] Generating angle calculation plots...")
             angle_plot_files = []
             if angle_data['departure']:
-                for i, (pole, angle) in enumerate(angle_data['departure'].items(), 1):
-                    filename = plot_angle_calculation(pole, poles, zeros, 'departure', i, output_dir=temp_dir)
+                for pole, details in angle_data['departure'].items():
+                    # Find the correct 1-based index of the pole
+                    pole_index = poles_list.index(pole) + 1
+                    filename = plot_angle_calculation(pole, poles, zeros, 'departure', pole_index, output_dir=temp_dir)
                     angle_plot_files.append(filename)
             if angle_data['arrival']:
-                for i, (zero, angle) in enumerate(angle_data['arrival'].items(), 1):
-                    filename = plot_angle_calculation(zero, poles, zeros, 'arrival', i, output_dir=temp_dir)
+                for zero, details in angle_data['arrival'].items():
+                    # Find the correct 1-based index of the zero
+                    zero_index = zeros_list.index(zero) + 1
+                    filename = plot_angle_calculation(zero, poles, zeros, 'arrival', zero_index, output_dir=temp_dir)
                     angle_plot_files.append(filename)
 
             s = sp.symbols('s')
