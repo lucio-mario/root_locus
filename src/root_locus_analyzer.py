@@ -4,13 +4,17 @@ import numpy as np
 import matplotlib.pyplot as plt
 import control as ctrl
 import sympy as sp
-from pylatex import Document, Section, Math, Command, NoEscape, Subsection, Tabular, Figure, Center, Subsubsection
+from pylatex import Document, Section, Math, Command, NoEscape, Subsection, Tabular, Figure, Center, Subsubsection, Itemize
 from pylatex.utils import bold
 import os
 import tempfile
 import warnings
 import shutil
 warnings.filterwarnings("ignore", category=FutureWarning, module='control')
+
+# ==========================================
+# 1. FUNÇÕES DE INPUT E CÁLCULO
+# ==========================================
 
 def get_polynomial_input(name):
     prompt = f"Enter the coefficients for the {name} (space-separated):\n> "
@@ -77,7 +81,6 @@ def analyze_departure_arrival_angles(poles, zeros):
                 sum_zero_angles += np.angle(p_focus - z, deg=True)
 
             final_angle = (180 - (sum_pole_angles - sum_zero_angles)) % 360
-            # This now returns a dictionary with all the details
             departure_angles[p_focus] = {
                 'angle': final_angle,
                 'sum_poles': sum_pole_angles,
@@ -93,9 +96,8 @@ def analyze_departure_arrival_angles(poles, zeros):
                     sum_zero_angles += np.angle(z_focus - z_other, deg=True)
             for p in poles:
                 sum_pole_angles += np.angle(z_focus - p, deg=True)
-            
+
             final_angle = (180 - (sum_zero_angles - sum_pole_angles)) % 360
-            # This also returns a dictionary with details
             arrival_angles[z_focus] = {
                 'angle': final_angle,
                 'sum_poles': sum_pole_angles,
@@ -104,13 +106,17 @@ def analyze_departure_arrival_angles(poles, zeros):
 
     return {'departure': departure_angles, 'arrival': arrival_angles}
 
+# ==========================================
+# 2. FUNÇÕES DE VISUALIZAÇÃO
+# ==========================================
+
 def plot_angle_calculation(focus_point, all_poles, all_zeros, point_type, index, output_dir='.'):
     fig, ax = plt.subplots(figsize=(12, 10))
 
     ax.scatter(np.real(all_poles), np.imag(all_poles), s=150, marker='x', c='r', linewidth=2.5, label='Other Poles')
     if all_zeros.any():
         ax.scatter(np.real(all_zeros), np.imag(all_zeros), s=150, marker='o', facecolors='none',
-                    edgecolors='b', linewidths=2.5, label='Zeros')
+                   edgecolors='b', linewidths=2.5, label='Zeros')
 
     ax.scatter(np.real(focus_point), np.imag(focus_point), s=300, marker='*', c='g', label=f'Focus: {point_type[0].upper()}{index}')
 
@@ -136,12 +142,10 @@ def plot_angle_calculation(focus_point, all_poles, all_zeros, point_type, index,
         ax.text(np.real(z + vec / 2), np.imag(z + vec / 2) - 0.1, f'{angle_deg:.1f}°', color='blue', fontsize=10)
 
     if point_type == 'departure':
-        # Normalize the final angle to be in the range [0, 360]
         final_angle = (180 - (sum_pole_angles - sum_zero_angles)) % 360
         formula_str = f'$\\theta_{{p{index}}} = 180° - (\\sum \\theta_p - \\sum \\theta_z)$'
         result_str = f'$\\theta_{{p{index}}} = 180° - ({sum_pole_angles:.1f}° - {sum_zero_angles:.1f}°) = {final_angle:.2f}°$'
     else:
-        # Normalize the final angle to be in the range [0, 360]
         final_angle = (180 - (sum_zero_angles - sum_pole_angles)) % 360
         formula_str = f'$\\theta_{{z{index}}} = 180° - (\\sum \\theta_z - \\sum \\theta_p)$'
         result_str = f'$\\theta_{{z{index}}} = 180° - ({sum_zero_angles:.1f}° - {sum_pole_angles:.1f}°) = {final_angle:.2f}°$'
@@ -192,7 +196,7 @@ def generate_root_locus_plot(system, poles, zeros, asymp_data, output_dir='.', s
                 p1, p2 = branch[idx], branch[idx+1]
                 dx, dy = np.real(p2) - np.real(p1), np.imag(p2) - np.imag(p1)
                 ax.arrow(np.real(p1), np.imag(p1), dx, dy, color='k',
-                          head_width=0.15, head_length=0.2, length_includes_head=True)
+                         head_width=0.15, head_length=0.2, length_includes_head=True)
 
     ax.scatter(np.real(poles), np.imag(poles), s=150, marker='x', c='r', linewidth=2.5, label='Poles')
     if zeros.any():
@@ -245,9 +249,12 @@ def generate_root_locus_plot(system, poles, zeros, asymp_data, output_dir='.', s
     else:
         plot_filename = os.path.join(output_dir, 'root_locus_plot.png')
         plt.savefig(plot_filename, dpi=300)
-        plt.close(fig)
+        # Importante não fechar aqui na lógica de return tuple se for usar na GUI, mas aqui é CLI.
+        # Mantido conforme original
         print(f"[Verbose Mode] Temporary plot saved to '{plot_filename}'")
         return fig, plot_filename.replace(os.sep, '/')
+
+# --- Console (Mantido) ---
 
 def display_console_summary(system, poles, zeros, asymp_data, break_data, routh_data, angle_data):
     def format_complex(c, precision=4):
@@ -270,14 +277,14 @@ def display_console_summary(system, poles, zeros, asymp_data, break_data, routh_
     print(f"  - Number of Poles (#p): {len(poles)}")
     for i, p in enumerate(poles):
         print(f"    - p{i+1}: {format_complex(p)}")
-    
+
     print(f"\n  - Number of Zeros (#z): {len(zeros)}")
     if not zeros.any():
         print("    - No finite zeros.")
     else:
         for i, z in enumerate(zeros):
             print(f"    - z{i+1}: {format_complex(z)}")
-    
+
     print(f"\n  - Number of Branches (#r): {len(poles)}")
 
     print("\n" + "-"*70)
@@ -331,8 +338,10 @@ def display_console_summary(system, poles, zeros, asymp_data, break_data, routh_
         for s in routh_data['crossings']:
             s_val = complex(s.evalf())
             print(f"    - s = {format_complex(s_val)}")
-    
+
     print("\n" + "="*70)
+
+# --- REPORT GENERATOR ATUALIZADO ---
 
 def generate_report(data):
     print("[Verbose Mode] Assembling PDF report...")
@@ -343,33 +352,71 @@ def generate_report(data):
     doc.preamble.append(Command('usepackage', 'amsmath'))
     doc.preamble.append(Command('usepackage', 'graphicx'))
     doc.preamble.append(Command('usepackage', 'geometry'))
-    doc.preamble.append(Command('title', 'Complete Root Locus Analysis Report'))
-    doc.preamble.append(Command('author', 'Generated by Root Locus Analyzer'))
+    doc.preamble.append(Command('usepackage', 'booktabs'))
+    doc.preamble.append(Command('title', 'Root Locus Analysis Report'))
+    doc.preamble.append(Command('author', 'Automated Control System Analyzer'))
     doc.preamble.append(Command('date', NoEscape(r'\today')))
     doc.append(NoEscape(r'\maketitle'))
 
+    # ... dentro de generate_report ...
+
+    # Helper formatador rigoroso REVISADO
     def to_latex(expr, precision=4):
         if expr is None: return ""
-        try:
-            expr = sp.nsimplify(expr, rational=False, tolerance=1e-10)
-        except (sp.SympifyError, TypeError):
-            pass
 
-        if isinstance(expr, (sp.Expr, sp.Matrix)):
-            return sp.latex(sp.N(expr, precision), imaginary_unit='j', full_prec=False, mul_symbol='dot')
-        if isinstance(expr, (complex, np.complexfloating)):
-            return to_latex(sp.sympify(expr), precision)
-        return sp.latex(expr, imaginary_unit='j', full_prec=False)
+        # 1. Garante que tudo seja avaliado numericamente primeiro (remove raiz de 2, etc)
+        expr_eval = sp.N(expr)
+
+        # 2. Função que limpa UM número isolado
+        def clean_number(n):
+            if not isinstance(n, (sp.Float, float)): return n
+
+            val = float(n)
+            rounded = round(val, precision)
+
+            # Lógica para Inteiros: Se 2.0000 -> vira 2 (sp.Integer)
+            # Isso resolve o "2.0" e o "1.0s" (vira "s")
+            if abs(rounded - round(rounded)) < 1e-9:
+                return sp.Integer(int(round(rounded)))
+
+            # Lógica para Floats: Retorna o float arredondado
+            # Isso resolve o excesso de casas decimais
+            return sp.Float(rounded, precision)
+
+        # 3. Mágica do SymPy: Substitui recursivamente todos os Floats da expressão
+        # Se expr_eval for uma lista/tupla (ex: polos), aplicamos em cada item
+        if hasattr(expr_eval, '__iter__') and not isinstance(expr_eval, sp.Basic):
+             # Trata listas de polos/zeros recursivamente
+             return [to_latex(e, precision) for e in expr_eval]
+
+        if hasattr(expr_eval, 'replace'):
+            # x.is_Float captura números reais dentro de complexos e polinômios
+            clean_expr = expr_eval.replace(
+                lambda x: x.is_Float,
+                lambda x: clean_number(x)
+            )
+            return sp.latex(clean_expr)
+
+        # Fallback para tipos simples (strings, ints puros)
+        return sp.latex(expr_eval)
 
     with doc.create(Section('System Transfer Function')):
         doc.append(NoEscape(f"The analyzed open-loop transfer function is:"))
+        # Aplicamos to_latex aqui para garantir a formatação limpa também na TF
         doc.append(Math(data=f"G(s) = {to_latex(data['tf_sympy'])}", escape=False))
 
     with doc.create(Section('Poles and Zeros')):
-        poles_count = len(data['poles'])
+        with doc.create(Itemize()) as item:
+            item.add_item(NoEscape(rf"\#p (Poles): {len(data['poles'])}"))
+            item.add_item(NoEscape(rf"\#z (Zeros): {len(data['zeros'])}"))
+            item.add_item(NoEscape(rf"\#r (Branches): {len(data['poles'])}"))
+
+        doc.append(Command('par'))
+
         doc.append(bold('System Poles:'))
         for i, p in enumerate(data['poles'], 1):
             doc.append(Math(data=f"p_{i} = {to_latex(p)}", escape=False))
+
         doc.append(Command('par'))
         doc.append(bold('System Zeros:'))
         if data['zeros'].any():
@@ -377,9 +424,7 @@ def generate_report(data):
                 doc.append(Math(data=f"z_{i} = {to_latex(z)}", escape=False))
         else:
             doc.append(' No finite zeros.')
-        doc.append(Command('par'))
-        doc.append(NoEscape(rf"Number of branches ($\#r$) = Number of poles ($\#p$) = {poles_count}."))
-    
+
     with doc.create(Section('Detailed Analysis')):
         with doc.create(Subsection('Asymptote Analysis')):
             asymp_data = data['asymptotes']
@@ -389,33 +434,35 @@ def generate_report(data):
                 doc.append(NoEscape(rf"With $\#p={asymp_data['#p']}$ and $\#z={asymp_data['#z']}$, we have $q = \#p - \#z = {asymp_data['q']}$ asymptotes."))
                 with doc.create(Center()):
                     doc.append(Math(data=r'\sigma_a = \frac{\sum p_i - \sum z_i}{\#p-\#z}', escape=False))
-                    doc.append(NoEscape(f"$ \\rightarrow \\sigma_a = \\frac{{{to_latex(asymp_data['sum_poles'])} - ({to_latex(asymp_data['sum_zeros'])})}}{{{asymp_data['q']}}} = {asymp_data['sigma'].real:.4f} $"))
+                    doc.append(NoEscape(f"$ \\rightarrow \\sigma_a = \\frac{{{to_latex(asymp_data['sum_poles'])} - ({to_latex(asymp_data['sum_zeros'])})}}{{{asymp_data['q']}}} = {to_latex(asymp_data['sigma'].real)} $"))
                 doc.append(Command('par'))
                 doc.append(NoEscape(r"The angles are given by $\theta_{a,k} = \frac{(2k+1)180^\circ}{q}$:"))
                 for i, angle in enumerate(asymp_data['angles']):
-                    doc.append(Math(data=rf"k={i}: \quad \theta_{{a,{i}}} = \frac{{(2 \cdot {i} + 1)180^\circ}}{{{asymp_data['q']}}} = {angle:.4f}^\circ", escape=False))
-        
+                    doc.append(Math(data=rf"k={i}: \quad \theta_{{a,{i}}} = {angle:.2f}^\circ", escape=False))
+
         with doc.create(Subsection('Departure and Arrival Angles')):
             angle_data = data['angles']
             all_poles_list = list(data['poles'])
             all_zeros_list = list(data['zeros'])
             doc.append("These angles indicate the direction of the locus as it leaves a complex pole or arrives at a complex zero.")
-            
+
+            # Adicionando referência ao Appendix
+            if angle_data['departure'] or angle_data['arrival']:
+                 doc.append(NoEscape(r" (See \textbf{Appendix A} for detailed visualization plots)."))
+
             if angle_data['departure']:
                 with doc.create(Subsubsection('Angles of Departure')):
                     for p_focus, angle_details in angle_data['departure'].items():
                         pole_index = all_poles_list.index(p_focus) + 1
                         angle = angle_details['angle']
-                        # This line was changed to show only the result
                         formula_str = rf"\theta_{{p{pole_index}}} = {angle:.4f}^\circ"
                         doc.append(Math(data=formula_str, escape=False))
-            
+
             if angle_data['arrival']:
                 with doc.create(Subsubsection('Angles of Arrival')):
                     for z_focus, angle_details in angle_data['arrival'].items():
                         zero_index = all_zeros_list.index(z_focus) + 1
                         angle = angle_details['angle']
-                        # This line was also changed to show only the result
                         formula_str = rf"\theta_{{z{zero_index}}} = {angle:.4f}^\circ"
                         doc.append(Math(data=formula_str, escape=False))
 
@@ -428,23 +475,29 @@ def generate_report(data):
             doc.append("The roots of this equation are the potential points:")
             for sol in break_data['solutions']:
                 doc.append(Math(data=f"s = {to_latex(sol)}", escape=False))
-        
+
         with doc.create(Subsection('Imaginary Axis Crossing')):
             routh_data = data['routh_hurwitz']
             if not routh_data['is_suitable']:
                  doc.append("System is 2nd order or less.")
             else:
                 doc.append(NoEscape(r"The Routh-Hurwitz criterion is applied to the characteristic polynomial $1+KG(s)=0$."))
-                doc.append(Math(data=f"{to_latex(routh_data['char_poly'].as_expr(), precision=12)} = 0", escape=False))
+                # Reduzida precisão para 4 no polinômio característico
+                doc.append(Math(data=f"{to_latex(routh_data['char_poly'].as_expr(), precision=4)} = 0", escape=False))
                 with doc.create(Center()):
-                    doc.append("The Routh Table is:")
-                routh_array = routh_data['routh_array']
-                n_rows, n_cols = routh_array.shape
-                table = Tabular("c" * (n_cols + 1), row_height=1.5)
-                for i in range(n_rows):
-                    row_data = [NoEscape(f'${to_latex(c, precision=4)}$') for c in routh_array.row(i)]
-                    table.add_row([NoEscape(f"$s^{n_rows-1-i}$")] + row_data)
-                doc.append(table)
+                    # Removido texto "The Routh Table is:" para economizar espaço
+                    routh_array = routh_data['routh_array']
+                    n_rows, n_cols = routh_array.shape
+                    table = Tabular("c" + "c" * n_cols, booktabs=True)
+                    # Cabeçalho
+                    table.add_row(["Order"] + [f"Col {j+1}" for j in range(n_cols)])
+                    table.add_hline()
+                    for i in range(n_rows):
+                        # Mantida precisão 3 ou 4 para a tabela ficar legível
+                        row_data = [NoEscape(f'${to_latex(c, precision=4)}$') for c in routh_array.row(i)]
+                        table.add_row([NoEscape(f"$s^{n_rows-1-i}$")] + row_data)
+                    doc.append(table)
+
                 if routh_data['k_crit']:
                     doc.append(Command('par'))
                     doc.append(NoEscape(r"The system becomes marginally stable when the $s^1$ row is zero:"))
@@ -463,19 +516,30 @@ def generate_report(data):
             plot.add_image(data['plot_filename'], width=NoEscape(r'1\textwidth'))
             plot.add_caption('Complete Root Locus plot including poles, zeros, and asymptotes.')
 
+    # NOVA SEÇÃO: APÊNDICE PARA IMAGENS
     if data.get('angle_plot_files'):
-        with doc.create(Section('Angle Calculation Visualizations')):
+        # Força quebra de página antes do apêndice
+        doc.append(Command('clearpage'))
+        with doc.create(Section('Appendix A: Angle Calculation Visualizations')):
             doc.append("The following plots detail the calculation for each departure and arrival angle.")
             for filename in data['angle_plot_files']:
+                # Um gráfico por página, conforme solicitado "deixe um desse por folha"
+                doc.append(Command('clearpage'))
                 with doc.create(Figure(position='h!')) as fig:
+                    fig.append(Command('centering'))
                     parts = os.path.basename(filename).replace('.png', '').split('_')
-                    point_type_str = "departure" if parts[2] == "departure" else "arrival"
-                    point_class_str = "pole" if parts[2] == "departure" else "zero"
-                    point_index = parts[3]
-                    caption_text = f"Visualization of the angle calculation for the {point_type_str} of {point_class_str} {point_class_str[0]}{point_index}."
+                    try:
+                        point_type_str = "departure" if "departure" in parts else "arrival"
+                        point_class_str = "pole" if "departure" in parts else "zero"
+                        point_index = parts[-1]
+                        caption_text = f"Visualization of the angle calculation for the {point_type_str} of {point_class_str} {point_class_str[0]}{point_index}."
+                    except:
+                        caption_text = "Angle calculation geometry."
 
-                    fig.add_image(filename, width=NoEscape(r'0.9\textwidth'))
+                    # Reduzido tamanho para evitar corte na parte inferior (0.75 textwidth é seguro)
+                    fig.add_image(filename, width=NoEscape(r'0.75\textwidth'))
                     fig.add_caption(NoEscape(caption_text))
+
     try:
         final_pdf_filename = 'root_locus_analysis_report'
         doc.generate_pdf(final_pdf_filename, clean_tex=True, compiler='pdflatex')
@@ -483,7 +547,6 @@ def generate_report(data):
     except Exception as e:
         print(f"\n--- LaTeX Compilation Error ---\nCould not generate PDF. Error: {e}")
         print("Please ensure you have a LaTeX distribution (like MiKTeX, TeX Live) installed and in your system's PATH.")
-
         raise e
 
 def main():
@@ -503,10 +566,11 @@ def main():
         os.remove(pdf_filename)
 
     print("====== Root Locus Analysis ======")
-    num, den = get_polynomial_input("numerator"), get_polynomial_input("denominator")
+    num = get_polynomial_input("numerator")
+    den = get_polynomial_input("denominator")
     system = ctrl.TransferFunction(num, den)
     poles, zeros = ctrl.poles(system), ctrl.zeros(system)
-    
+
     # Convert to lists to easily find indices later
     poles_list = list(poles)
     zeros_list = list(zeros)
@@ -516,21 +580,14 @@ def main():
     routh_data = analyze_imaginary_crossing(num, den)
     angle_data = analyze_departure_arrival_angles(poles, zeros)
 
-    # Find and replace the entire if/else block at the end of main() with this new structure
-
     if args.verbose:
-        # This block will handle both `-v` and `-v -k` cases.
         if args.keep:
-            # Case: -v and -k are used together.
-            # We create the 'plots' directory and run the full report generation,
-            # saving the files permanently.
             output_dir = output_dir_name
             os.makedirs(output_dir, exist_ok=True)
             print(f"\n[Verbose Mode] Plots will be saved in '{output_dir}'.")
 
-            # This is the same logic that was inside the 'with tempfile.TemporaryDirectory()' block,
-            # but now it uses our permanent 'output_dir'.
-            main_plot_filename = generate_root_locus_plot(system, poles, zeros, asymptotes_data, output_dir=output_dir)
+            fig, main_plot_filename = generate_root_locus_plot(system, poles, zeros, asymptotes_data, output_dir=output_dir, show_only=False)
+            plt.close(fig)
 
             print("\n[Verbose Mode] Generating angle calculation plots...")
             angle_plot_files = []
@@ -553,14 +610,11 @@ def main():
             }
             generate_report(report_data)
         else:
-            # Case: Only -v is used. This is the original behavior.
-            # It uses a temporary directory that gets deleted afterwards.
             with tempfile.TemporaryDirectory() as temp_dir:
-                # This block is the original code you had for the 'if args.verbose:' case.
-                # You can copy and paste it here.
                 print(f"\n[Verbose Mode] Using temporary directory: {temp_dir}")
-                main_plot_filename = generate_root_locus_plot(system, poles, zeros, asymptotes_data, output_dir=temp_dir)
-                # ... (rest of the original code for generating plots and report in temp_dir) ...
+                fig, main_plot_filename = generate_root_locus_plot(system, poles, zeros, asymptotes_data, output_dir=temp_dir)
+                plt.close(fig)
+
                 print("\n[Verbose Mode] Generating angle calculation plots...")
                 angle_plot_files = []
                 if angle_data['departure']:
@@ -583,14 +637,12 @@ def main():
                 generate_report(report_data)
 
     elif args.keep:
-        # Case: Only -k is used.
-        # We create the 'plots' directory, save all plot files there,
-        # and print the console summary. No PDF is generated.
         output_dir = output_dir_name
         os.makedirs(output_dir, exist_ok=True)
         print(f"\n[Keep Mode] Saving plots to '{output_dir}'...")
 
-        generate_root_locus_plot(system, poles, zeros, asymptotes_data, output_dir=output_dir, show_only=False)
+        fig, _ = generate_root_locus_plot(system, poles, zeros, asymptotes_data, output_dir=output_dir, show_only=False)
+        plt.close(fig)
 
         if angle_data['departure']:
             for pole, details in angle_data['departure'].items():
@@ -605,10 +657,7 @@ def main():
         print(f"\nPlot files have been saved in the '{output_dir_name}' directory.")
 
     else:
-        # Case: No flags are used. This is the original default behavior.
-        # It just shows the summary and opens the interactive plot window.
         display_console_summary(system, poles, zeros, asymptotes_data, breakaway_data, routh_data, angle_data)
-
         print("\nShowing Root Locus graph in a new window...")
         generate_root_locus_plot(system, poles, zeros, asymptotes_data, show_only=True)
 
