@@ -164,7 +164,7 @@ def plot_angle_calculation(focus_point, all_poles, all_zeros, point_type, index,
     plt.savefig(plot_filename, dpi=150, bbox_inches='tight')
     print(f"[Verbose Mode] Temporary angle plot saved to '{plot_filename}'")
     plt.close()
-    return plot_filename
+    return plot_filename.replace(os.sep, '/')
 
 def generate_root_locus_plot(system, poles, zeros, asymp_data, output_dir='.', show_only=False):
     if not show_only:
@@ -247,7 +247,7 @@ def generate_root_locus_plot(system, poles, zeros, asymp_data, output_dir='.', s
         plt.savefig(plot_filename, dpi=300)
         plt.close(fig)
         print(f"[Verbose Mode] Temporary plot saved to '{plot_filename}'")
-        return plot_filename
+        return fig, plot_filename.replace(os.sep, '/')
 
 def display_console_summary(system, poles, zeros, asymp_data, break_data, routh_data, angle_data):
     def format_complex(c, precision=4):
