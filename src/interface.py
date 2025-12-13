@@ -7,6 +7,7 @@ import subprocess
 import platform
 import ctypes
 import tkinter as tk
+from tkinter import messagebox # Import necessário para mensagens de erro
 
 # Imports do Matplotlib para integração com Tkinter
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
@@ -111,7 +112,7 @@ class RootLocusApp(ctk.CTk):
         self.tabview.tab("Root Locus Plot").grid_columnconfigure(0, weight=1)
         self.tabview.tab("Root Locus Plot").grid_rowconfigure(0, weight=1)
 
-        # Frame Container para o Matplotlib (Importante para limpar depois)
+        # Frame Container para o Matplotlib
         self.plot_frame = ctk.CTkFrame(self.tabview.tab("Root Locus Plot"), fg_color="transparent")
         self.plot_frame.grid(row=0, column=0, sticky="nsew")
 
@@ -135,7 +136,7 @@ class RootLocusApp(ctk.CTk):
         self.progressbar.start()
         self.log_text.delete("0.0", "end")
 
-        # Limpa o gráfico anterior se existir
+        # Limpa o gráfico anterior
         for widget in self.plot_frame.winfo_children():
             widget.destroy()
 
@@ -160,7 +161,6 @@ class RootLocusApp(ctk.CTk):
         try:
             print(f"[System] Starting analysis for Num: {num}, Den: {den}...\n")
 
-            # --- Backend Calls ---
             system = backend.ctrl.TransferFunction(num, den)
             poles, zeros = backend.ctrl.poles(system), backend.ctrl.zeros(system)
 
@@ -174,8 +174,6 @@ class RootLocusApp(ctk.CTk):
             output_dir = "gui_plots"
             os.makedirs(output_dir, exist_ok=True)
 
-            # --- A CORREÇÃO PRINCIPAL ESTÁ AQUI ---
-            # Recebemos a Figura (para a GUI) e o Nome do Arquivo (para o PDF)
             fig, plot_file = backend.generate_root_locus_plot(system, poles, zeros, asym_data, output_dir=output_dir, show_only=False)
 
             if self.pdf_switch.get() == 1:
@@ -196,7 +194,6 @@ class RootLocusApp(ctk.CTk):
                 report_data = {
                     'tf_sympy': backend.sp.Poly(num, s).as_expr() / backend.sp.Poly(den, s).as_expr(),
                     'poles': poles, 'zeros': zeros,
-                    # Aqui passamos apenas o caminho do arquivo (string), não a tupla!
                     'plot_filename': plot_file,
                     'asymptotes': asym_data,
                     'breakaway': break_data, 'routh_hurwitz': routh_data,
@@ -237,29 +234,33 @@ class RootLocusApp(ctk.CTk):
             self.open_pdf_btn.configure(state="normal", fg_color="#2CC985", text_color="white")
 
     def draw_figure(self, fig):
-        """ Embutir Matplotlib Figure no Tkinter Frame com Toolbar """
-        # Cria o Canvas
         self.canvas = FigureCanvasTkAgg(fig, master=self.plot_frame)
         self.canvas.draw()
-
-        # Barra de Ferramentas (Zoom, Pan, Save)
         self.toolbar = NavigationToolbar2Tk(self.canvas, self.plot_frame)
         self.toolbar.update()
-
-        # Empacota na interface
         self.canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=True)
 
     def open_pdf(self):
-        pdf_path = "root_locus_analysis_report.pdf"
+        filename = "root_locus_analysis_report.pdf"
+        # Garante caminho absoluto
+        pdf_path = os.path.abspath(filename)
+
         if not os.path.exists(pdf_path):
-            messagebox.showerror("Error", "PDF not found!")
+            tk.messagebox.showerror("Error", "PDF not found!")
             return
+
         try:
-            if platform.system() == 'Darwin': subprocess.call(('open', pdf_path))
-            elif platform.system() == 'Windows': os.startfile(pdf_path)
-            else: subprocess.call(('xdg-open', pdf_path))
+            if platform.system() == 'Darwin':       # macOS
+                subprocess.Popen(['open', pdf_path])
+            elif platform.system() == 'Windows':    # Windows
+                os.startfile(pdf_path)
+            else:                                   # Linux (Solução robusta)
+                subprocess.Popen(['xdg-open', pdf_path],
+                                 stdout=subprocess.DEVNULL,
+                                 stderr=subprocess.DEVNULL)
         except Exception as e:
             self.log(f"\n[Error] Could not open PDF: {e}")
+            self.log(f"\nFile location: {pdf_path}")
 
 if __name__ == "__main__":
     app = RootLocusApp()
