@@ -30,15 +30,13 @@ jobs:
 
     - name: Build Windows EXE
       if: runner.os == 'Windows'
-      working-directory: ./src
       run: |
-        pyinstaller --noconfirm --onefile --windowed --name "RootLocus_Windows" --hidden-import "latex" --add-data "root_locus_analyzer.py;." interface.py
+        pyinstaller --noconfirm --onefile --windowed --name "RootLocus_Windows" --icon "assets/icon.ico" --hidden-import "latex" --add-data "assets;assets" --add-data "src/root_locus_analyzer.py;." src/interface.py
 
     - name: Build Linux Binary
       if: runner.os == 'Linux'
-      working-directory: ./src
       run: |
-        pyinstaller --noconfirm --onefile --windowed --name "RootLocus_Linux" --hidden-import "latex" --add-data "root_locus_analyzer.py:." interface.py
+        pyinstaller --noconfirm --onefile --windowed --name "RootLocus_Linux" --hidden-import "latex" --add-data "assets:assets" --add-data "src/root_locus_analyzer.py:." src/interface.py
 
     - name: Upload Artifacts to Release
       uses: softprops/action-gh-release@v1

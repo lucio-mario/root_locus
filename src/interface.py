@@ -11,10 +11,28 @@ import sympy as sp
 # Importa o seu módulo (o nome do arquivo deve ser root_locus_analyzer.py)
 import root_locus_analyzer as backend
 
+def resource_path(relative_path):
+    """ Retorna o caminho absoluto, funciona para dev e para o PyInstaller """
+    try:
+        # PyInstaller cria uma pasta temporária e armazena o caminho em _MEIPASS
+        base_path = sys._MEIPASS
+    except Exception:
+        base_path = os.path.abspath(".")
+
+    return os.path.join(base_path, relative_path)
+
 class RootLocusApp:
     def __init__(self, root):
         self.root = root
         self.root.title("Root Locus Analyzer v1.0")
+        try:
+            if os.name == 'nt': # Windows
+                self.root.iconbitmap(resource_path("assets/icon.ico"))
+            else: # Linux
+                img = tk.Image("photo", file=resource_path("assets/icon.png"))
+                self.root.tk.call('wm', 'iconphoto', self.root._w, img)
+        except Exception:
+            pass # Se não achar o ícone, usa o padrão do sistema sem travar
         self.root.geometry("1100x800")
         
         # Configuração de Estilo (Tema escuro básico para combinar com Arch/Hyprland)

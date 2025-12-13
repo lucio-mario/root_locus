@@ -1,0 +1,7 @@
+numpy
+matplotlib
+control
+sympy
+pylatex
+Pillow
+pyinstaller
