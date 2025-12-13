@@ -1,4 +1,12 @@
+__pycache__/
+*.py[cod]
+venv/
+.venv/
+
+build/
+dist/
+*.spec
+
+*.log
 *.pdf
-*.png
-*.tex
-*.aug
+gui_plots/

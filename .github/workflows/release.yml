@@ -1,0 +1,49 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build for ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: Install dependencies
+      run: |
+        pip install pyinstaller pillow control sympy matplotlib pylatex numpy scipy
+
+    - name: Build Windows EXE
+      if: runner.os == 'Windows'
+      working-directory: ./src
+      run: |
+        pyinstaller --noconfirm --onefile --windowed --name "RootLocus_Windows" --hidden-import "latex" --add-data "root_locus_analyzer.py;." interface.py
+
+    - name: Build Linux Binary
+      if: runner.os == 'Linux'
+      working-directory: ./src
+      run: |
+        pyinstaller --noconfirm --onefile --windowed --name "RootLocus_Linux" --hidden-import "latex" --add-data "root_locus_analyzer.py:." interface.py
+
+    - name: Upload Artifacts to Release
+      uses: softprops/action-gh-release@v1
+      if: startsWith(github.ref, 'refs/tags/')
+      with:
+        files: |
+          src/dist/RootLocus_Windows.exe
+          src/dist/RootLocus_Linux
