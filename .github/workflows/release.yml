@@ -26,7 +26,7 @@ jobs:
 
     - name: Install dependencies
       run: |
-        pip install pyinstaller pillow control sympy matplotlib pylatex numpy scipy
+        pip install pyinstaller pillow control sympy matplotlib pylatex numpy scipy customtkinter packaging
 
     - name: Build Windows EXE
       if: runner.os == 'Windows'
