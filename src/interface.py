@@ -1,3 +1,4 @@
+import shutil
 import customtkinter as ctk
 import sys
 import io
@@ -242,25 +243,53 @@ class RootLocusApp(ctk.CTk):
 
     def open_pdf(self):
         filename = "root_locus_analysis_report.pdf"
-        # Garante caminho absoluto
         pdf_path = os.path.abspath(filename)
 
         if not os.path.exists(pdf_path):
             tk.messagebox.showerror("Error", "PDF not found!")
             return
 
+        # Lista de tentativas universais (Navegadores funcionam em todos os OS)
+        # Adicionei 'msedge' (Edge) e 'chrome' para garantir no Windows
+        fallback_viewers = [
+            'xdg-open', 'zathura', 'evince', 'okular', 'atril',
+            'firefox', 'google-chrome', 'chrome', 'chromium', 'msedge'
+        ]
+
         try:
-            if platform.system() == 'Darwin':       # macOS
-                subprocess.Popen(['open', pdf_path])
-            elif platform.system() == 'Windows':    # Windows
+            # 1. Tenta o método nativo perfeito do Windows
+            if platform.system() == 'Windows':
                 os.startfile(pdf_path)
-            else:                                   # Linux (Solução robusta)
-                subprocess.Popen(['xdg-open', pdf_path],
-                                 stdout=subprocess.DEVNULL,
-                                 stderr=subprocess.DEVNULL)
-        except Exception as e:
-            self.log(f"\n[Error] Could not open PDF: {e}")
-            self.log(f"\nFile location: {pdf_path}")
+                return # Se não der erro, encerra aqui
+
+            # 2. Tenta o método nativo do macOS
+            elif platform.system() == 'Darwin':
+                subprocess.Popen(['open', pdf_path])
+                return
+
+        except Exception:
+            # Se o método nativo falhar (ex: Windows sem padrão definido),
+            # cai aqui e tenta a lista de browsers abaixo.
+            self.log("\n[Warning] Native open failed, trying browsers...")
+
+        # 3. Lógica de Fallback (Roda no Linux E se o Windows/Mac falharem)
+        opened = False
+        for viewer in fallback_viewers:
+            if shutil.which(viewer): # Verifica se o programa existe
+                try:
+                    self.log(f"\n[System] Opening with: {viewer}")
+                    subprocess.Popen([viewer, pdf_path],
+                                     stdout=subprocess.DEVNULL,
+                                     stderr=subprocess.DEVNULL)
+                    opened = True
+                    break
+                except Exception:
+                    continue
+
+        if not opened:
+            self.log(f"\n[Error] No suitable PDF viewer found.")
+            tk.messagebox.showwarning("No Viewer",
+                "Could not open PDF automatically.\nPlease open 'root_locus_analysis_report.pdf' manually.")
 
 if __name__ == "__main__":
     app = RootLocusApp()
