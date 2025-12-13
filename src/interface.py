@@ -1,14 +1,18 @@
 import customtkinter as ctk
-from PIL import Image
 import sys
 import io
 import os
 import threading
 import subprocess
 import platform
-import ctypes # Para o ícone do Windows
+import ctypes
+import tkinter as tk
 
-# Importa o seu backend
+# Imports do Matplotlib para integração com Tkinter
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
+import matplotlib.pyplot as plt
+
+# Importa o backend
 import root_locus_analyzer as backend
 
 # --- Configuração Global do Tema ---
@@ -16,7 +20,6 @@ ctk.set_appearance_mode("Dark")
 ctk.set_default_color_theme("dark-blue")
 
 def resource_path(relative_path):
-    """ Retorna o caminho absoluto, funciona para dev e para o PyInstaller """
     try:
         base_path = sys._MEIPASS
     except Exception:
@@ -29,38 +32,33 @@ class RootLocusApp(ctk.CTk):
 
         # --- Janela Principal ---
         self.title("Root Locus Analyzer Pro")
-        self.geometry("1100x750") # Aumentei um pouco a altura
+        self.geometry("1100x800")
 
-        # --- 1. Configuração Robusta de Ícone ---
+        # --- Configuração de Ícone ---
         icon_path_ico = resource_path(os.path.join("assets", "icon.ico"))
         icon_path_png = resource_path(os.path.join("assets", "icon.png"))
 
-        # Fix para Barra de Tarefas do Windows
         if os.name == 'nt':
             try:
-                myappid = 'luciomario.rootlocus.tool.1.1' # ID arbitrário
+                myappid = 'luciomario.rootlocus.tool.1.4'
                 ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
                 self.iconbitmap(icon_path_ico)
-            except Exception:
-                pass
+            except Exception: pass
         else:
-            # Tentativa para Linux/X11
             try:
-                img =  tk.Image("photo", file=icon_path_png)
+                img = tk.Image("photo", file=icon_path_png)
                 self.tk.call('wm', 'iconphoto', self._w, img)
-            except Exception:
-                pass
+            except Exception: pass
 
-        # --- Layout de Grid ---
+        # --- Layout Principal ---
         self.grid_columnconfigure(1, weight=1)
         self.grid_rowconfigure(0, weight=1)
 
-        # ================= SIDEBAR (Esquerda) =================
+        # ================= SIDEBAR =================
         self.sidebar_frame = ctk.CTkFrame(self, width=250, corner_radius=0)
         self.sidebar_frame.grid(row=0, column=0, rowspan=4, sticky="nsew")
         self.sidebar_frame.grid_rowconfigure(6, weight=1)
 
-        # Título
         self.logo_label = ctk.CTkLabel(self.sidebar_frame, text="Control Systems\nAnalyzer",
                                      font=ctk.CTkFont(size=20, weight="bold"))
         self.logo_label.grid(row=0, column=0, padx=20, pady=(20, 10))
@@ -78,17 +76,17 @@ class RootLocusApp(ctk.CTk):
         self.den_entry.grid(row=4, column=0, padx=20, pady=(0, 10), sticky="ew")
         self.den_entry.insert(0, "1 2 2")
 
-        # Opções
+        # Switch PDF
         self.pdf_switch = ctk.CTkSwitch(self.sidebar_frame, text="Generate PDF Report")
         self.pdf_switch.grid(row=5, column=0, padx=20, pady=20, sticky="n")
         self.pdf_switch.select()
 
-        # Botão Open PDF (Novo!)
+        # Botão Open PDF
         self.open_pdf_btn = ctk.CTkButton(self.sidebar_frame, text="OPEN PDF REPORT",
                                           command=self.open_pdf,
                                           fg_color="transparent", border_width=2,
                                           text_color=("gray10", "#DCE4EE"),
-                                          state="disabled") # Começa desativado
+                                          state="disabled")
         self.open_pdf_btn.grid(row=6, column=0, padx=20, pady=(0, 20), sticky="s")
 
         # Barra de Progresso
@@ -102,20 +100,26 @@ class RootLocusApp(ctk.CTk):
                                       height=40, font=ctk.CTkFont(weight="bold"))
         self.calc_btn.grid(row=8, column=0, padx=20, pady=30, sticky="ew")
 
-        # ================= MAIN AREA (Direita) =================
+        # ================= MAIN AREA =================
         self.tabview = ctk.CTkTabview(self, width=250)
         self.tabview.grid(row=0, column=1, padx=(20, 20), pady=(20, 20), sticky="nsew")
 
         self.tabview.add("Root Locus Plot")
         self.tabview.add("Terminal Log")
 
-        # Aba Gráfico
+        # --- Configuração Aba Gráfico ---
         self.tabview.tab("Root Locus Plot").grid_columnconfigure(0, weight=1)
         self.tabview.tab("Root Locus Plot").grid_rowconfigure(0, weight=1)
-        self.plot_image_label = ctk.CTkLabel(self.tabview.tab("Root Locus Plot"), text="Plot will appear here\n(Run Analysis)", font=ctk.CTkFont(size=15))
-        self.plot_image_label.grid(row=0, column=0, padx=0, pady=0)
 
-        # Aba Log
+        # Frame Container para o Matplotlib (Importante para limpar depois)
+        self.plot_frame = ctk.CTkFrame(self.tabview.tab("Root Locus Plot"), fg_color="transparent")
+        self.plot_frame.grid(row=0, column=0, sticky="nsew")
+
+        # Variáveis de controle
+        self.canvas = None
+        self.toolbar = None
+
+        # --- Configuração Aba Log ---
         self.tabview.tab("Terminal Log").grid_columnconfigure(0, weight=1)
         self.tabview.tab("Terminal Log").grid_rowconfigure(0, weight=1)
         self.log_text = ctk.CTkTextbox(self.tabview.tab("Terminal Log"), width=400, font=("Consolas", 12))
@@ -127,9 +131,13 @@ class RootLocusApp(ctk.CTk):
 
     def start_analysis_thread(self):
         self.calc_btn.configure(state="disabled", text="Processing...")
-        self.open_pdf_btn.configure(state="disabled", fg_color="transparent") # Reseta botão PDF
+        self.open_pdf_btn.configure(state="disabled", fg_color="transparent")
         self.progressbar.start()
         self.log_text.delete("0.0", "end")
+
+        # Limpa o gráfico anterior se existir
+        for widget in self.plot_frame.winfo_children():
+            widget.destroy()
 
         thread = threading.Thread(target=self.run_analysis)
         thread.start()
@@ -146,12 +154,13 @@ class RootLocusApp(ctk.CTk):
 
         old_stdout = sys.stdout
         sys.stdout = io.StringIO()
-        plot_file = None
+        fig = None
         pdf_generated = False
 
         try:
             print(f"[System] Starting analysis for Num: {num}, Den: {den}...\n")
 
+            # --- Backend Calls ---
             system = backend.ctrl.TransferFunction(num, den)
             poles, zeros = backend.ctrl.poles(system), backend.ctrl.zeros(system)
 
@@ -164,12 +173,14 @@ class RootLocusApp(ctk.CTk):
 
             output_dir = "gui_plots"
             os.makedirs(output_dir, exist_ok=True)
-            plot_file = backend.generate_root_locus_plot(system, poles, zeros, asym_data, output_dir=output_dir, show_only=False)
+
+            # --- A CORREÇÃO PRINCIPAL ESTÁ AQUI ---
+            # Recebemos a Figura (para a GUI) e o Nome do Arquivo (para o PDF)
+            fig, plot_file = backend.generate_root_locus_plot(system, poles, zeros, asym_data, output_dir=output_dir, show_only=False)
 
             if self.pdf_switch.get() == 1:
                 angle_plot_files = []
                 poles_list, zeros_list = list(poles), list(zeros)
-
                 if angle_data['departure']:
                     for pole, _ in angle_data['departure'].items():
                         idx = poles_list.index(pole) + 1
@@ -185,7 +196,9 @@ class RootLocusApp(ctk.CTk):
                 report_data = {
                     'tf_sympy': backend.sp.Poly(num, s).as_expr() / backend.sp.Poly(den, s).as_expr(),
                     'poles': poles, 'zeros': zeros,
-                    'plot_filename': plot_file, 'asymptotes': asym_data,
+                    # Aqui passamos apenas o caminho do arquivo (string), não a tupla!
+                    'plot_filename': plot_file,
+                    'asymptotes': asym_data,
                     'breakaway': break_data, 'routh_hurwitz': routh_data,
                     'angles': angle_data, 'angle_plot_files': angle_plot_files
                 }
@@ -196,14 +209,15 @@ class RootLocusApp(ctk.CTk):
         except Exception as e:
             sys.stdout = old_stdout
             self.finish_analysis(error=str(e))
+            if fig: plt.close(fig)
             return
 
         output_str = sys.stdout.getvalue()
         sys.stdout = old_stdout
 
-        self.finish_analysis(output_str=output_str, plot_path=plot_file, pdf_ready=pdf_generated)
+        self.finish_analysis(output_str=output_str, fig=fig, pdf_ready=pdf_generated)
 
-    def finish_analysis(self, output_str=None, plot_path=None, error=None, pdf_ready=False):
+    def finish_analysis(self, output_str=None, fig=None, error=None, pdf_ready=False):
         self.progressbar.stop()
         self.calc_btn.configure(state="normal", text="RUN ANALYSIS")
 
@@ -215,40 +229,35 @@ class RootLocusApp(ctk.CTk):
         if output_str:
             self.log(output_str)
 
-        if plot_path:
-            self.display_image(plot_path)
+        if fig:
+            self.draw_figure(fig)
             self.tabview.set("Root Locus Plot")
 
-        # Ativa o botão de PDF se foi gerado
         if pdf_ready:
-            self.open_pdf_btn.configure(state="normal", fg_color="#2CC985", text_color="white") # Verde CustomTkinter
+            self.open_pdf_btn.configure(state="normal", fg_color="#2CC985", text_color="white")
 
-    def display_image(self, path):
-        try:
-            pil_image = Image.open(path)
-            w = self.tabview.tab("Root Locus Plot").winfo_width() - 20
-            h = self.tabview.tab("Root Locus Plot").winfo_height() - 20
-            if w < 100: w = 700
-            if h < 100: h = 500
-            my_image = ctk.CTkImage(light_image=pil_image, dark_image=pil_image, size=(w, h))
-            self.plot_image_label.configure(image=my_image, text="")
-        except Exception as e:
-            self.log(f"\n[Image Error] Could not load plot: {e}")
+    def draw_figure(self, fig):
+        """ Embutir Matplotlib Figure no Tkinter Frame com Toolbar """
+        # Cria o Canvas
+        self.canvas = FigureCanvasTkAgg(fig, master=self.plot_frame)
+        self.canvas.draw()
+
+        # Barra de Ferramentas (Zoom, Pan, Save)
+        self.toolbar = NavigationToolbar2Tk(self.canvas, self.plot_frame)
+        self.toolbar.update()
+
+        # Empacota na interface
+        self.canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=True)
 
     def open_pdf(self):
-        """ Abre o PDF com o visualizador padrão do sistema """
         pdf_path = "root_locus_analysis_report.pdf"
         if not os.path.exists(pdf_path):
             messagebox.showerror("Error", "PDF not found!")
             return
-
         try:
-            if platform.system() == 'Darwin':       # macOS
-                subprocess.call(('open', pdf_path))
-            elif platform.system() == 'Windows':    # Windows
-                os.startfile(pdf_path)
-            else:                                   # Linux
-                subprocess.call(('xdg-open', pdf_path))
+            if platform.system() == 'Darwin': subprocess.call(('open', pdf_path))
+            elif platform.system() == 'Windows': os.startfile(pdf_path)
+            else: subprocess.call(('xdg-open', pdf_path))
         except Exception as e:
             self.log(f"\n[Error] Could not open PDF: {e}")
 
