@@ -8,16 +8,13 @@ import subprocess
 import platform
 import ctypes
 import tkinter as tk
-from tkinter import messagebox # Import necessário para mensagens de erro
+from tkinter import messagebox
 
-# Imports do Matplotlib para integração com Tkinter
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
 import matplotlib.pyplot as plt
 
-# Importa o backend
 import root_locus_analyzer as backend
 
-# --- Configuração Global do Tema ---
 ctk.set_appearance_mode("Dark")
 ctk.set_default_color_theme("dark-blue")
 
@@ -32,11 +29,9 @@ class RootLocusApp(ctk.CTk):
     def __init__(self):
         super().__init__()
 
-        # --- Janela Principal ---
         self.title("Root Locus Analyzer Pro")
         self.geometry("1100x800")
 
-        # --- Configuração de Ícone ---
         icon_path_ico = resource_path(os.path.join("assets", "icon.ico"))
         icon_path_png = resource_path(os.path.join("assets", "icon.png"))
 
@@ -52,20 +47,17 @@ class RootLocusApp(ctk.CTk):
                 self.tk.call('wm', 'iconphoto', self._w, img)
             except Exception: pass
 
-        # --- Layout Principal ---
         self.grid_columnconfigure(1, weight=1)
         self.grid_rowconfigure(0, weight=1)
 
-        # ================= SIDEBAR =================
         self.sidebar_frame = ctk.CTkFrame(self, width=250, corner_radius=0)
         self.sidebar_frame.grid(row=0, column=0, rowspan=4, sticky="nsew")
         self.sidebar_frame.grid_rowconfigure(6, weight=1)
 
         self.logo_label = ctk.CTkLabel(self.sidebar_frame, text="Control Systems\nAnalyzer",
-                                     font=ctk.CTkFont(size=20, weight="bold"))
+                                       font=ctk.CTkFont(size=20, weight="bold"))
         self.logo_label.grid(row=0, column=0, padx=20, pady=(20, 10))
 
-        # Inputs
         self.num_label = ctk.CTkLabel(self.sidebar_frame, text="Numerator Coeffs:", anchor="w")
         self.num_label.grid(row=1, column=0, padx=20, pady=(10, 0), sticky="w")
         self.num_entry = ctk.CTkEntry(self.sidebar_frame, placeholder_text="e.g., 1")
@@ -78,12 +70,10 @@ class RootLocusApp(ctk.CTk):
         self.den_entry.grid(row=4, column=0, padx=20, pady=(0, 10), sticky="ew")
         self.den_entry.insert(0, "1 2 2")
 
-        # Switch PDF
         self.pdf_switch = ctk.CTkSwitch(self.sidebar_frame, text="Generate PDF Report")
         self.pdf_switch.grid(row=5, column=0, padx=20, pady=20, sticky="n")
         self.pdf_switch.select()
 
-        # Botão Open PDF
         self.open_pdf_btn = ctk.CTkButton(self.sidebar_frame, text="OPEN PDF REPORT",
                                           command=self.open_pdf,
                                           fg_color="transparent", border_width=2,
@@ -91,37 +81,30 @@ class RootLocusApp(ctk.CTk):
                                           state="disabled")
         self.open_pdf_btn.grid(row=6, column=0, padx=20, pady=(0, 20), sticky="s")
 
-        # Barra de Progresso
         self.progressbar = ctk.CTkProgressBar(self.sidebar_frame, mode="indeterminate")
         self.progressbar.grid(row=7, column=0, padx=20, pady=10, sticky="ew")
         self.progressbar.set(0)
 
-        # Botão Principal
         self.calc_btn = ctk.CTkButton(self.sidebar_frame, text="RUN ANALYSIS",
                                       command=self.start_analysis_thread,
                                       height=40, font=ctk.CTkFont(weight="bold"))
         self.calc_btn.grid(row=8, column=0, padx=20, pady=30, sticky="ew")
 
-        # ================= MAIN AREA =================
         self.tabview = ctk.CTkTabview(self, width=250)
         self.tabview.grid(row=0, column=1, padx=(20, 20), pady=(20, 20), sticky="nsew")
 
         self.tabview.add("Root Locus Plot")
         self.tabview.add("Terminal Log")
 
-        # --- Configuração Aba Gráfico ---
         self.tabview.tab("Root Locus Plot").grid_columnconfigure(0, weight=1)
         self.tabview.tab("Root Locus Plot").grid_rowconfigure(0, weight=1)
 
-        # Frame Container para o Matplotlib
         self.plot_frame = ctk.CTkFrame(self.tabview.tab("Root Locus Plot"), fg_color="transparent")
         self.plot_frame.grid(row=0, column=0, sticky="nsew")
 
-        # Variáveis de controle
         self.canvas = None
         self.toolbar = None
 
-        # --- Configuração Aba Log ---
         self.tabview.tab("Terminal Log").grid_columnconfigure(0, weight=1)
         self.tabview.tab("Terminal Log").grid_rowconfigure(0, weight=1)
         self.log_text = ctk.CTkTextbox(self.tabview.tab("Terminal Log"), width=400, font=("Consolas", 12))
@@ -137,7 +120,6 @@ class RootLocusApp(ctk.CTk):
         self.progressbar.start()
         self.log_text.delete("0.0", "end")
 
-        # Limpa o gráfico anterior
         for widget in self.plot_frame.winfo_children():
             widget.destroy()
 
@@ -249,33 +231,26 @@ class RootLocusApp(ctk.CTk):
             tk.messagebox.showerror("Error", "PDF not found!")
             return
 
-        # Lista de tentativas universais (Navegadores funcionam em todos os OS)
-        # Adicionei 'msedge' (Edge) e 'chrome' para garantir no Windows
         fallback_viewers = [
             'xdg-open', 'zathura', 'evince', 'okular', 'atril',
             'firefox', 'google-chrome', 'chrome', 'chromium', 'msedge'
         ]
 
         try:
-            # 1. Tenta o método nativo perfeito do Windows
             if platform.system() == 'Windows':
                 os.startfile(pdf_path)
-                return # Se não der erro, encerra aqui
+                return
 
-            # 2. Tenta o método nativo do macOS
             elif platform.system() == 'Darwin':
                 subprocess.Popen(['open', pdf_path])
                 return
 
         except Exception:
-            # Se o método nativo falhar (ex: Windows sem padrão definido),
-            # cai aqui e tenta a lista de browsers abaixo.
             self.log("\n[Warning] Native open failed, trying browsers...")
 
-        # 3. Lógica de Fallback (Roda no Linux E se o Windows/Mac falharem)
         opened = False
         for viewer in fallback_viewers:
-            if shutil.which(viewer): # Verifica se o programa existe
+            if shutil.which(viewer):
                 try:
                     self.log(f"\n[System] Opening with: {viewer}")
                     subprocess.Popen([viewer, pdf_path],

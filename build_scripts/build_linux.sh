@@ -1,6 +1,6 @@
 #!/bin/bash
 set -e
-echo "=== Iniciando Build para Linux ==="
+echo "=== Starting Build for Linux ==="
 rm -rf build/ dist/
 
 pyinstaller --noconfirm --onefile --windowed \
@@ -12,4 +12,4 @@ pyinstaller --noconfirm --onefile --windowed \
     --add-data "assets:assets" \
     src/interface.py
 
-echo "✅ Sucesso! O binário está em dist/RootLocus_Linux"
+echo "Success! The binary is in dist/RootLocus_Linux"

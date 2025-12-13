@@ -12,10 +12,6 @@ import warnings
 import shutil
 warnings.filterwarnings("ignore", category=FutureWarning, module='control')
 
-# ==========================================
-# 1. FUNÇÕES DE INPUT E CÁLCULO
-# ==========================================
-
 def get_polynomial_input(name):
     prompt = f"Enter the coefficients for the {name} (space-separated):\n> "
     entry = input(prompt)
@@ -105,10 +101,6 @@ def analyze_departure_arrival_angles(poles, zeros):
             }
 
     return {'departure': departure_angles, 'arrival': arrival_angles}
-
-# ==========================================
-# 2. FUNÇÕES DE VISUALIZAÇÃO
-# ==========================================
 
 def plot_angle_calculation(focus_point, all_poles, all_zeros, point_type, index, output_dir='.'):
     fig, ax = plt.subplots(figsize=(12, 10))
@@ -249,12 +241,8 @@ def generate_root_locus_plot(system, poles, zeros, asymp_data, output_dir='.', s
     else:
         plot_filename = os.path.join(output_dir, 'root_locus_plot.png')
         plt.savefig(plot_filename, dpi=300)
-        # Importante não fechar aqui na lógica de return tuple se for usar na GUI, mas aqui é CLI.
-        # Mantido conforme original
         print(f"[Verbose Mode] Temporary plot saved to '{plot_filename}'")
         return fig, plot_filename.replace(os.sep, '/')
-
-# --- Console (Mantido) ---
 
 def display_console_summary(system, poles, zeros, asymp_data, break_data, routh_data, angle_data):
     def format_complex(c, precision=4):
@@ -292,10 +280,10 @@ def display_console_summary(system, poles, zeros, asymp_data, break_data, routh_
     if not asymp_data['has_asymptotes']:
         print("  - No asymptotes needed (q <= 0).")
     else:
-        print(f"  - Centroid (σ): {asymp_data['sigma'].real:.4f}")
-        print(f"  - Angles (θ):")
+        print(f"  - Centroid (sigma): {asymp_data['sigma'].real:.4f}")
+        print(f"  - Angles (theta):")
         for i, angle in enumerate(asymp_data['angles']):
-            print(f"    - θ{i+1}: {angle:.2f}°")
+            print(f"    - theta{i+1}: {angle:.2f}°")
 
     print("\n" + "-"*70)
     print("[+] Departure and Arrival Angles:")
@@ -306,7 +294,7 @@ def display_console_summary(system, poles, zeros, asymp_data, break_data, routh_
         for p, angle_details in angle_data['departure'].items():
             pole_index = poles_list.index(p) + 1
             angle_value = angle_details['angle']
-            print(f"    - θp{pole_index} (from pole {format_complex(p)}): {angle_value:.2f}°")
+            print(f"    - theta_p{pole_index} (from pole {format_complex(p)}): {angle_value:.2f}°")
 
     if not angle_data['arrival']:
         print("\n  - No arrival angles (no complex zeros).")
@@ -315,7 +303,7 @@ def display_console_summary(system, poles, zeros, asymp_data, break_data, routh_
         for z, angle_details in angle_data['arrival'].items():
             zero_index = zeros_list.index(z) + 1
             angle_value = angle_details['angle']
-            print(f"    - θz{zero_index} (at zero {format_complex(z)}): {angle_value:.2f}°")
+            print(f"    - theta_z{zero_index} (at zero {format_complex(z)}): {angle_value:.2f}°")
 
     print("\n" + "-"*70)
     print("[+] Breakaway / Break-in Points:")
@@ -341,8 +329,6 @@ def display_console_summary(system, poles, zeros, asymp_data, break_data, routh_
 
     print("\n" + "="*70)
 
-# --- REPORT GENERATOR ATUALIZADO ---
-
 def generate_report(data):
     print("[Verbose Mode] Assembling PDF report...")
 
@@ -358,51 +344,36 @@ def generate_report(data):
     doc.preamble.append(Command('date', NoEscape(r'\today')))
     doc.append(NoEscape(r'\maketitle'))
 
-    # ... dentro de generate_report ...
-
-    # Helper formatador rigoroso REVISADO
     def to_latex(expr, precision=4):
         if expr is None: return ""
 
-        # 1. Garante que tudo seja avaliado numericamente primeiro (remove raiz de 2, etc)
         expr_eval = sp.N(expr)
 
-        # 2. Função que limpa UM número isolado
         def clean_number(n):
             if not isinstance(n, (sp.Float, float)): return n
 
             val = float(n)
             rounded = round(val, precision)
 
-            # Lógica para Inteiros: Se 2.0000 -> vira 2 (sp.Integer)
-            # Isso resolve o "2.0" e o "1.0s" (vira "s")
             if abs(rounded - round(rounded)) < 1e-9:
                 return sp.Integer(int(round(rounded)))
 
-            # Lógica para Floats: Retorna o float arredondado
-            # Isso resolve o excesso de casas decimais
             return sp.Float(rounded, precision)
 
-        # 3. Mágica do SymPy: Substitui recursivamente todos os Floats da expressão
-        # Se expr_eval for uma lista/tupla (ex: polos), aplicamos em cada item
         if hasattr(expr_eval, '__iter__') and not isinstance(expr_eval, sp.Basic):
-             # Trata listas de polos/zeros recursivamente
              return [to_latex(e, precision) for e in expr_eval]
 
         if hasattr(expr_eval, 'replace'):
-            # x.is_Float captura números reais dentro de complexos e polinômios
             clean_expr = expr_eval.replace(
                 lambda x: x.is_Float,
                 lambda x: clean_number(x)
             )
             return sp.latex(clean_expr)
 
-        # Fallback para tipos simples (strings, ints puros)
         return sp.latex(expr_eval)
 
     with doc.create(Section('System Transfer Function')):
         doc.append(NoEscape(f"The analyzed open-loop transfer function is:"))
-        # Aplicamos to_latex aqui para garantir a formatação limpa também na TF
         doc.append(Math(data=f"G(s) = {to_latex(data['tf_sympy'])}", escape=False))
 
     with doc.create(Section('Poles and Zeros')):
@@ -446,7 +417,6 @@ def generate_report(data):
             all_zeros_list = list(data['zeros'])
             doc.append("These angles indicate the direction of the locus as it leaves a complex pole or arrives at a complex zero.")
 
-            # Adicionando referência ao Appendix
             if angle_data['departure'] or angle_data['arrival']:
                  doc.append(NoEscape(r" (See \textbf{Appendix A} for detailed visualization plots)."))
 
@@ -482,18 +452,14 @@ def generate_report(data):
                  doc.append("System is 2nd order or less.")
             else:
                 doc.append(NoEscape(r"The Routh-Hurwitz criterion is applied to the characteristic polynomial $1+KG(s)=0$."))
-                # Reduzida precisão para 4 no polinômio característico
                 doc.append(Math(data=f"{to_latex(routh_data['char_poly'].as_expr(), precision=4)} = 0", escape=False))
                 with doc.create(Center()):
-                    # Removido texto "The Routh Table is:" para economizar espaço
                     routh_array = routh_data['routh_array']
                     n_rows, n_cols = routh_array.shape
                     table = Tabular("c" + "c" * n_cols, booktabs=True)
-                    # Cabeçalho
                     table.add_row(["Order"] + [f"Col {j+1}" for j in range(n_cols)])
                     table.add_hline()
                     for i in range(n_rows):
-                        # Mantida precisão 3 ou 4 para a tabela ficar legível
                         row_data = [NoEscape(f'${to_latex(c, precision=4)}$') for c in routh_array.row(i)]
                         table.add_row([NoEscape(f"$s^{n_rows-1-i}$")] + row_data)
                     doc.append(table)
@@ -516,14 +482,11 @@ def generate_report(data):
             plot.add_image(data['plot_filename'], width=NoEscape(r'1\textwidth'))
             plot.add_caption('Complete Root Locus plot including poles, zeros, and asymptotes.')
 
-    # NOVA SEÇÃO: APÊNDICE PARA IMAGENS
     if data.get('angle_plot_files'):
-        # Força quebra de página antes do apêndice
         doc.append(Command('clearpage'))
         with doc.create(Section('Appendix A: Angle Calculation Visualizations')):
             doc.append("The following plots detail the calculation for each departure and arrival angle.")
             for filename in data['angle_plot_files']:
-                # Um gráfico por página, conforme solicitado "deixe um desse por folha"
                 doc.append(Command('clearpage'))
                 with doc.create(Figure(position='h!')) as fig:
                     fig.append(Command('centering'))
@@ -536,7 +499,6 @@ def generate_report(data):
                     except:
                         caption_text = "Angle calculation geometry."
 
-                    # Reduzido tamanho para evitar corte na parte inferior (0.75 textwidth é seguro)
                     fig.add_image(filename, width=NoEscape(r'0.75\textwidth'))
                     fig.add_caption(NoEscape(caption_text))
 
@@ -571,7 +533,6 @@ def main():
     system = ctrl.TransferFunction(num, den)
     poles, zeros = ctrl.poles(system), ctrl.zeros(system)
 
-    # Convert to lists to easily find indices later
     poles_list = list(poles)
     zeros_list = list(zeros)
 
