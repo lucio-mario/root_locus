@@ -31,12 +31,12 @@ jobs:
     - name: Build Windows EXE
       if: runner.os == 'Windows'
       run: |
-        pyinstaller --noconfirm --onefile --windowed --name "RootLocus_Windows" --icon "assets/icon.ico" --hidden-import "latex" --add-data "assets;assets" --add-data "src/root_locus_analyzer.py;." src/interface.py
+        pyinstaller --noconfirm --onefile --windowed --name "RootLocus_Windows" --collect-all "customtkinter" --hidden-import "PIL._tkinter_finder" --icon "assets/icon.ico" --hidden-import "latex" --add-data "assets;assets" --add-data "src/root_locus_analyzer.py;." src/interface.py
 
     - name: Build Linux Binary
       if: runner.os == 'Linux'
       run: |
-        pyinstaller --noconfirm --onefile --windowed --name "RootLocus_Linux" --hidden-import "latex" --add-data "assets:assets" --add-data "src/root_locus_analyzer.py:." src/interface.py
+        pyinstaller --noconfirm --onefile --windowed --name "RootLocus_Linux" --collect-all "customtkinter" --hidden-import "PIL._tkinter_finder" --hidden-import "latex" --add-data "assets:assets" --add-data "src/root_locus_analyzer.py:." src/interface.py
 
     - name: Upload Artifacts to Release
       uses: softprops/action-gh-release@v1
