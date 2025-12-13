@@ -484,6 +484,8 @@ def generate_report(data):
         print(f"\n--- LaTeX Compilation Error ---\nCould not generate PDF. Error: {e}")
         print("Please ensure you have a LaTeX distribution (like MiKTeX, TeX Live) installed and in your system's PATH.")
 
+        raise e
+
 def main():
     parser = argparse.ArgumentParser(description="Perform a complete Root Locus analysis.")
     parser.add_argument('-v', '--verbose', action='store_true', help="Generate a detailed PDF report with all plots embedded.")
