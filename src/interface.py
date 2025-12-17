@@ -70,8 +70,13 @@ class RootLocusApp(ctk.CTk):
         self.den_entry.grid(row=4, column=0, padx=20, pady=(0, 10), sticky="ew")
         self.den_entry.insert(0, "1 2 2")
 
+        self.zeta_label = ctk.CTkLabel(self.sidebar_frame, text="Target Zeta (ζ):", anchor="w")
+        self.zeta_label.grid(row=5, column=0, padx=20, pady=(10, 0), sticky="w")
+        self.zeta_entry = ctk.CTkEntry(self.sidebar_frame, placeholder_text="e.g., 0.5")
+        self.zeta_entry.grid(row=6, column=0, padx=20, pady=(0, 10), sticky="ew")
+
         self.pdf_switch = ctk.CTkSwitch(self.sidebar_frame, text="Generate PDF Report")
-        self.pdf_switch.grid(row=5, column=0, padx=20, pady=20, sticky="n")
+        self.pdf_switch.grid(row=7, column=0, padx=20, pady=20, sticky="n")
         self.pdf_switch.select()
 
         self.open_pdf_btn = ctk.CTkButton(self.sidebar_frame, text="OPEN PDF REPORT",
@@ -79,16 +84,16 @@ class RootLocusApp(ctk.CTk):
                                           fg_color="transparent", border_width=2,
                                           text_color=("gray10", "#DCE4EE"),
                                           state="disabled")
-        self.open_pdf_btn.grid(row=6, column=0, padx=20, pady=(0, 20), sticky="s")
+        self.open_pdf_btn.grid(row=8, column=0, padx=20, pady=(0, 20), sticky="s")
 
         self.progressbar = ctk.CTkProgressBar(self.sidebar_frame, mode="indeterminate")
-        self.progressbar.grid(row=7, column=0, padx=20, pady=10, sticky="ew")
+        self.progressbar.grid(row=9, column=0, padx=20, pady=10, sticky="ew")
         self.progressbar.set(0)
 
         self.calc_btn = ctk.CTkButton(self.sidebar_frame, text="RUN ANALYSIS",
                                       command=self.start_analysis_thread,
                                       height=40, font=ctk.CTkFont(weight="bold"))
-        self.calc_btn.grid(row=8, column=0, padx=20, pady=30, sticky="ew")
+        self.calc_btn.grid(row=10, column=0, padx=20, pady=30, sticky="ew")
 
         self.tabview = ctk.CTkTabview(self, width=250)
         self.tabview.grid(row=0, column=1, padx=(20, 20), pady=(20, 20), sticky="nsew")
@@ -130,8 +135,10 @@ class RootLocusApp(ctk.CTk):
         try:
             num_str = self.num_entry.get()
             den_str = self.den_entry.get()
+            zeta_str = self.zeta_entry.get()
             num = [float(x) for x in num_str.strip().split()]
             den = [float(x) for x in den_str.strip().split()]
+            target_zeta = float(zeta_str) if zeta_str.strip() else None
         except ValueError:
             self.finish_analysis(error="Invalid Input: Use space-separated numbers.")
             return
@@ -151,13 +158,14 @@ class RootLocusApp(ctk.CTk):
             break_data = backend.analyze_breakaway_points(num, den)
             routh_data = backend.analyze_imaginary_crossing(num, den)
             angle_data = backend.analyze_departure_arrival_angles(poles, zeros)
+            zeta_data = backend.analyze_target_zeta(system, target_zeta) if target_zeta is not None else None
 
-            backend.display_console_summary(system, poles, zeros, asym_data, break_data, routh_data, angle_data)
+            backend.display_console_summary(system, poles, zeros, asym_data, break_data, routh_data, angle_data, zeta_data)
 
             output_dir = "gui_plots"
             os.makedirs(output_dir, exist_ok=True)
 
-            fig, plot_file = backend.generate_root_locus_plot(system, poles, zeros, asym_data, output_dir=output_dir, show_only=False)
+            fig, plot_file = backend.generate_root_locus_plot(system, poles, zeros, asym_data, zeta_data=zeta_data, output_dir=output_dir, show_only=False)
 
             if self.pdf_switch.get() == 1:
                 angle_plot_files = []
@@ -179,8 +187,11 @@ class RootLocusApp(ctk.CTk):
                     'poles': poles, 'zeros': zeros,
                     'plot_filename': plot_file,
                     'asymptotes': asym_data,
-                    'breakaway': break_data, 'routh_hurwitz': routh_data,
-                    'angles': angle_data, 'angle_plot_files': angle_plot_files
+                    'breakaway': break_data,
+                    'routh_hurwitz': routh_data,
+                    'angles': angle_data,
+                    'angle_plot_files': angle_plot_files,
+                    'zeta_analysis': zeta_data  # <--- Add this
                 }
                 backend.generate_report(report_data)
                 print(f"\n[PDF] Report generated successfully.")
@@ -231,6 +242,10 @@ class RootLocusApp(ctk.CTk):
             tk.messagebox.showerror("Error", "PDF not found!")
             return
 
+        system_env = os.environ.copy()
+        if 'LD_LIBRARY_PATH' in system_env:
+            del system_env['LD_LIBRARY_PATH']
+
         fallback_viewers = [
             'xdg-open', 'zathura', 'evince', 'okular', 'atril',
             'firefox', 'google-chrome', 'chrome', 'chromium', 'msedge'
@@ -255,7 +270,8 @@ class RootLocusApp(ctk.CTk):
                     self.log(f"\n[System] Opening with: {viewer}")
                     subprocess.Popen([viewer, pdf_path],
                                      stdout=subprocess.DEVNULL,
-                                     stderr=subprocess.DEVNULL)
+                                     stderr=subprocess.DEVNULL,
+                                     env=system_env)
                     opened = True
                     break
                 except Exception:
